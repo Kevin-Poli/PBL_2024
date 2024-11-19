@@ -127,4 +127,16 @@ class UserController extends Controller
             'message' => 'User berhasil dihapus'
         ]);
     }
+    public function contactsView()
+    {
+        $users = UserModel::all();
+        return view('contacts', compact('users'));
+    }
+
+    // New method for individual user profile view
+    public function profileView($id)
+    {
+        $user = UserModel::findOrFail($id);
+        return view('user-profile', compact('user'));
+    }
 }
