@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
+
+
 
 class AuthController extends Controller
 {
@@ -17,7 +22,7 @@ class AuthController extends Controller
         if (Auth::check()) {
             return redirect('/home');
         }
-        return view('auth.login');
+        return view('login.login');
     }
 
     public function postlogin(Request $request)
@@ -77,98 +82,6 @@ class AuthController extends Controller
         }
     }
 
-    public function register()
-    {
-        return view('auth.register');
-    }
-
-    public function postRegister(Request $request)
-    {
-        try {
-            Log::info('Register Request:', $request->all());
-
-            // Validasi input sesuai schema baru
-            $validator = Validator::make($request->all(), [
-                'username' => 'required|string|min:3|max:50|unique:m_user,username',
-                'nama' => 'required|string|max:100',
-                'password' => 'required|min:6',
-                'email' => 'required|email|unique:m_user,email',
-                'nip' => 'required|string|max:50|unique:m_user,nip',
-                'foto_profil' => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
-            ], [
-                'username.required' => 'Username wajib diisi',
-                'username.unique' => 'Username sudah digunakan',
-                'nama.required' => 'Nama wajib diisi',
-                'email.required' => 'Email wajib diisi',
-                'email.email' => 'Format email tidak valid',
-                'email.unique' => 'Email sudah digunakan',
-                'nip.required' => 'NIP wajib diisi',
-                'nip.unique' => 'NIP sudah digunakan',
-                'password.required' => 'Password wajib diisi',
-                'password.min' => 'Password minimal 6 karakter',
-                'foto_profil.image' => 'File harus berupa gambar',
-                'foto_profil.mimes' => 'Format gambar harus jpeg, png, atau jpg',
-                'foto_profil.max' => 'Ukuran gambar maksimal 2MB'
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Validasi gagal',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            DB::beginTransaction();
-            
-            try {
-                $userData = [
-                    'username' => $request->username,
-                    'nama' => $request->nama,
-                    'password' => Hash::make($request->password),
-                    'email' => $request->email,
-                    'nip' => $request->nip,
-                    'level_id' => 3, // Default level DOSEN
-                    'email_verified_at' => now() // Opsional, sesuai kebutuhan
-                ];
-
-                // Handle upload foto profil
-                if ($request->hasFile('foto_profil')) {
-                    $file = $request->file('foto_profil');
-                    $filename = time() . '_' . $file->getClientOriginalName();
-                    $file->storeAs('public/profile_photos', $filename);
-                    $userData['foto_profil'] = 'profile_photos/' . $filename;
-                }
-
-                $user = UserModel::create($userData);
-
-                DB::commit();
-
-                return response()->json([
-                    'status' => true,
-                    'message' => 'Register Berhasil',
-                    'redirect' => url('/login'),
-                    'user' => $user
-                ], 201);
-
-            } catch (\Exception $e) {
-                DB::rollback();
-                Log::error('Registration Error:', [
-                    'message' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-                throw $e;
-            }
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
-                'detail' => env('APP_DEBUG') ? $e->getTraceAsString() : null
-            ], 500);
-        }
-    }
-
     public function logout(Request $request)
     {
         try {
@@ -194,4 +107,56 @@ class AuthController extends Controller
             ], 500);
         }
     }
+
+    public function showLinkRequestForm()
+{
+    return view('login.reset');
+}
+
+/**
+ * Mengirim email reset password
+ */
+public function sendResetLinkEmail(Request $request)
+{
+    $request->validate([
+        'email' => 'required|email'
+    ]);
+
+    try {
+        $user = UserModel::where('email', $request->email)->first();
+        
+        if (!$user) {
+            return back()->withErrors([
+                'email' => 'Email tidak ditemukan dalam sistem.'
+            ]);
+        }
+
+        // Generate token reset password
+        $token = Str::random(60);
+        
+        DB::table('password_reset_tokens')->insert([
+            'email' => $request->email,
+            'token' => $token,
+            'created_at' => now()
+        ]);
+
+        // Kirim email 
+        Mail::send('emails.reset_password', ['token' => $token], function ($message) use ($request) {
+            $message->to($request->email);
+            $message->subject('Reset Password');
+        }); 
+
+        return back()->with('status', 'Link reset password telah dikirim ke email Anda!');
+
+    } catch (\Exception $e) {
+        Log::error('Reset Password Error:', [
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return back()->withErrors([
+            'email' => 'Terjadi kesalahan saat memproses permintaan reset password.'
+        ]);
+    }
+}
 }
