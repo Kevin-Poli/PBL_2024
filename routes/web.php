@@ -2,40 +2,37 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\UserController;
+use App\Http\Controllers\DosenController;
+use App\Http\Controllers\KegiatanController;
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "web" middleware group. Make something great!
-|
-*/
+
 Route::get('/', function () {
-    return redirect('login');
+   return redirect()->route('login');
 });
-Route::pattern('id', '[0-9]+');
 
-//Route Login
+// Auth Routes
 Route::get('login', [AuthController::class, 'login'])->name('login');
 Route::post('login', [AuthController::class, 'postlogin']);
-Route::get('logout', [AuthController::class, 'logout']);
+Route::get('logout', [AuthController::class, 'logout'])->middleware('auth');
+// Route Register
+Route::get('register', [AuthController::class, 'register']);
+Route::post('register', [AuthController::class, 'store']);
 // Route Reset Password
 Route::get('forgot-password', [AuthController::class, 'showLinkRequestForm'])->name('password.request');
 Route::post('forgot-password', [AuthController::class, 'sendResetLinkEmail'])->name('password.email');
 
+// Protected Dosen Routes
 Route::middleware(['auth'])->group(function () {
-    Route::get('/home', function () {
-        return view('dashboard');
-    })->name('home');
-    
-    Route::get('/profile', [UserController::class, 'editProfile'])->name('profile.edit');
-    Route::put('/profile', [UserController::class, 'updateProfile'])->name('profile.update');
-    
-    Route::get('/users', [UserController::class, 'index'])->name('users.index');
-    Route::put('/user/{id}', [UserController::class, 'updateUser'])->name('users.update');
-    Route::delete('/user/{id}', [UserController::class, 'deleteUser'])->name('users.delete');
+   // Menampilkan daftar kegiatan untuk semua dosen
+   Route::get('/kegiatan', [KegiatanController::class, 'index'])->name('kegiatan.index');
+
+   // Route CRUD khusus PIC
+   Route::middleware(['role:pic'])->group(function () {
+       Route::post('/kegiatan/{id}/agenda', [KegiatanController::class, 'storeAgenda'])->name('agenda.store');
+       Route::put('/kegiatan/{id}/agenda/{agendaId}', [KegiatanController::class, 'updateAgenda'])->name('agenda.update');
+       Route::delete('/kegiatan/{id}/agenda/{agendaId}', [KegiatanController::class, 'destroyAgenda'])->name('agenda.destroy');
+       
+       Route::post('/kegiatan/{id}/anggota', [KegiatanController::class, 'storeAnggota'])->name('anggota.store');
+       Route::delete('/kegiatan/{id}/anggota/{anggotaId}', [KegiatanController::class, 'destroyAnggota'])->name('anggota.destroy');
+   });
 });

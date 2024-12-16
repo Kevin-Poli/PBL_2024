@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 
 class KegiatanController extends Controller
 {
+    
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -41,8 +42,10 @@ class KegiatanController extends Controller
 
     public function index()
     {
-        $Kegiatans = KegiatanModel::latest()->get();
-        return view('Kegiatan.index', compact('Kegiatan'));
+        $kegiatan = KegiatanModel::with(['anggota', 'agenda'])->get();
+        $user = auth()->user();
+
+        return view('kegiatan.index', compact('kegiatan', 'user'));
     }
 
     public function create()
@@ -61,4 +64,50 @@ class KegiatanController extends Controller
         return redirect()->route('Kegiatan.index')
             ->with('success', 'Kegiatan deleted successfully');
     }
+    public function storeAgenda(Request $request, $id)
+    {
+        Agenda::create([
+            'kegiatan_id' => $id,
+            'name' => $request->name,
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
+        ]);
+
+        return back()->with('success', 'Agenda berhasil ditambahkan.');
+    }
+
+    public function updateAgenda(Request $request, $id, $agendaId)
+    {
+        $agenda = Agenda::where('kegiatan_id', $id)->find($agendaId);
+        $agenda->update($request->all());
+
+        return back()->with('success', 'Agenda berhasil diperbarui.');
+    }
+
+    public function destroyAgenda($id, $agendaId)
+    {
+        $agenda = Agenda::where('kegiatan_id', $id)->find($agendaId);
+        $agenda->delete();
+
+        return back()->with('success', 'Agenda berhasil dihapus.');
+    }
+
+    // CRUD Anggota (Khusus PIC)
+    public function storeAnggota(Request $request, $id)
+    {
+        Anggota::create([
+            'kegiatan_id' => $id,
+            'user_id' => $request->user_id,
+        ]);
+
+        return back()->with('success', 'Anggota berhasil ditambahkan.');
+    }
+
+    public function destroyAnggota($id, $anggotaId)
+    {
+        Anggota::where('kegiatan_id', $id)->where('id', $anggotaId)->delete();
+
+        return back()->with('success', 'Anggota berhasil dihapus.');
+    }
 }
+
